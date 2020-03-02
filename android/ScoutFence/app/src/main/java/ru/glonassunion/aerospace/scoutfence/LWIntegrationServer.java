@@ -1,6 +1,9 @@
 package ru.glonassunion.aerospace.scoutfence;
 
+import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.RequiresApi;
@@ -31,8 +34,18 @@ public class LWIntegrationServer extends NanoHTTPD {
         } catch (ResponseException re) {
             return newFixedLengthResponse(re.getStatus(), MIME_PLAINTEXT, re.getMessage());
         }
-        String body = session.getQueryParameterString();
-        handler.HandleLorawanJSON(body);
+        final String body = session.getQueryParameterString();
+
+        Handler mainThreadHangler = new Handler(Looper.getMainLooper());
+
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                handler.HandleLorawanJSON(body);
+            }
+        };
+        mainThreadHangler.post(runnable);
+
         return newFixedLengthResponse("OK");
     }
 }

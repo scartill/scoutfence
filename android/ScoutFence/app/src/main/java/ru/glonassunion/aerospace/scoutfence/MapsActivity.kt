@@ -3,6 +3,7 @@ package ru.glonassunion.aerospace.scoutfence
 import android.app.PendingIntent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -11,6 +12,10 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 
+import com.beust.klaxon.Klaxon
+import java.lang.Exception
+
+class LorawanQuery(val deveui: String?, var lat: Double?, var lon: Double?)
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandler {
 
@@ -41,7 +46,24 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
     }
 
     override fun HandleLorawanJSON(json: String): Boolean {
-//        val lat =
-        return true;
+        try {
+            Log.i("LoraWAN", json)
+
+            val parseResult = Klaxon().parse<LorawanQuery>(json)
+
+            parseResult?.let {
+                val newMarker = LatLng(it.lat ?: 0.0, it.lon ?: 0.0)
+                mMap.addMarker(MarkerOptions().position(newMarker).title(it.deveui))
+            }
+        }
+        catch (e: Exception)
+        {
+            val message = e.message ?: "unknown"
+            Log.e("LoRaWAN", message)
+            return false
+        }
+        return true
     }
 }
+
+
