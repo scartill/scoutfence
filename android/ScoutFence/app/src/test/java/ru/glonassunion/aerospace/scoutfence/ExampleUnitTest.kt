@@ -1,4 +1,4 @@
-package com.example.scoutfence
+package ru.glonassunion.aerospace.scoutfence
 
 import org.junit.Test
 

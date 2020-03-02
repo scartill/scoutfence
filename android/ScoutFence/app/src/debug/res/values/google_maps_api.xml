@@ -4,7 +4,7 @@
 
     To get one, follow this link, follow the directions and press "Create" at the end:
 
-    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=C3:9F:5B:78:28:F4:A7:D8:7E:20:4B:53:60:C8:B0:00:D9:D8:F7:FA%3Bcom.example.scoutfence
+    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=C3:9F:5B:78:28:F4:A7:D8:7E:20:4B:53:60:C8:B0:00:D9:D8:F7:FA%3Bru.glonassunion.aerospace.scoutfence
 
     You can also add your credentials to an existing key, using these values:
 
