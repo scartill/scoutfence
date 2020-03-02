@@ -13,12 +13,14 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 
 import com.beust.klaxon.Klaxon
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory.*
 import com.google.android.gms.maps.model.Marker
 import java.lang.Exception
 import java.lang.IllegalArgumentException
 import java.util.*
 
-class LorawanDevice(val deveui: String, var lat: Double, var lon: Double)
+class LorawanDevice(val deveui: String, var lat: Double, var lon: Double, var alarm: Boolean)
 class Tracker(var device: LorawanDevice, var marker: Marker, var timestamp: Date)
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandler {
@@ -58,8 +60,21 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 ?: throw IllegalArgumentException("Unable to parse JSON: $json")
 
             val position = LatLng(device.lat, device.lon)
+            val tooFar = false
+            Log.i("Alarm", device.alarm.toString())
+            val bitmap = if (device.alarm)
+                    fromResource(R.drawable.marker_red)
+                else if (tooFar)
+                    fromResource(R.drawable.marker_orange)
+                else
+                    fromResource(R.drawable.marker_green)
+
             if(!trackers.containsKey(device.deveui)) {
-                val marker = mMap.addMarker(MarkerOptions().position(position).title(device.deveui))
+                val marker = mMap.addMarker(MarkerOptions()
+                    .position(position)
+                    .title(device.deveui)
+                    .icon(bitmap)
+                )
                 val tracker = Tracker(device, marker, Date())
                 trackers[device.deveui] = tracker
             }
@@ -68,6 +83,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 val tracker = trackers.getValue(device.deveui)
                 val marker = tracker.marker
                 marker.position = position
+                marker.setIcon(bitmap)
                 tracker.timestamp = Date()
             }
         }
