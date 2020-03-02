@@ -13,14 +13,20 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 
 import com.beust.klaxon.Klaxon
+import com.google.android.gms.maps.model.Marker
 import java.lang.Exception
+import java.lang.IllegalArgumentException
+import java.util.*
 
-class LorawanQuery(val deveui: String?, var lat: Double?, var lon: Double?)
+class LorawanDevice(val deveui: String, var lat: Double, var lon: Double)
+class Tracker(var device: LorawanDevice, var marker: Marker, var timestamp: Date)
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandler {
 
     private lateinit var mMap: GoogleMap
     private lateinit var wserver: LWIntegrationServer
+
+    private lateinit var trackers: MutableMap<String, Tracker>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,24 +42,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
      * This callback is triggered when the map is ready to be used.
      */
     override fun onMapReady(googleMap: GoogleMap) {
+        trackers = mutableMapOf()
         mMap = googleMap
         wserver = LWIntegrationServer(8080, this)
         wserver.start()
 
         // Add a marker in Sydney and move the camera
-        val sydney = LatLng(-34.0, 151.0)
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+        val moscow = LatLng(55.5, 37.5)
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(moscow))
     }
 
     override fun HandleLorawanJSON(json: String): Boolean {
         try {
-            Log.i("LoraWAN", json)
+            val device = Klaxon().parse<LorawanDevice>(json)
+                ?: throw IllegalArgumentException("Unable to parse JSON: $json")
 
-            val parseResult = Klaxon().parse<LorawanQuery>(json)
-
-            parseResult?.let {
-                val newMarker = LatLng(it.lat ?: 0.0, it.lon ?: 0.0)
-                mMap.addMarker(MarkerOptions().position(newMarker).title(it.deveui))
+            val position = LatLng(device.lat, device.lon)
+            if(!trackers.containsKey(device.deveui)) {
+                val marker = mMap.addMarker(MarkerOptions().position(position).title(device.deveui))
+                val tracker = Tracker(device, marker, Date())
+                trackers[device.deveui] = tracker
+            }
+            else
+            {
+                val tracker = trackers.getValue(device.deveui)
+                val marker = tracker.marker
+                marker.position = position
+                tracker.timestamp = Date()
             }
         }
         catch (e: Exception)
