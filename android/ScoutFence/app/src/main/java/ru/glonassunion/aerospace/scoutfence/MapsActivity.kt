@@ -1,26 +1,24 @@
 package ru.glonassunion.aerospace.scoutfence
 
-import android.app.PendingIntent
-import androidx.appcompat.app.AppCompatActivity
+import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-
+import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.PreferenceManager
+import com.beust.klaxon.Klaxon
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
-
-import com.beust.klaxon.Klaxon
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.BitmapDescriptorFactory.*
 import com.google.android.gms.maps.model.Marker
-import java.lang.Exception
-import java.lang.IllegalArgumentException
+import com.google.android.gms.maps.model.MarkerOptions
 import java.util.*
+
 
 class LorawanDevice(val deveui: String, var lat: Double, var lon: Double, var alarm: Boolean)
 class Tracker(var device: LorawanDevice, var marker: Marker, var timestamp: Date)
@@ -34,6 +32,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val sharedPreferences: SharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        val editor = sharedPreferences.edit();
+        editor.putInt("radius", 300)
+
         setContentView(R.layout.activity_maps)
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -104,7 +108,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        Log.w("button", "pressed")
+        val sharedPreferences: SharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        var radius = sharedPreferences.getString("radius", "test")
+        Log.d("raduis", radius)
+
+        val intent = Intent(this, SettingsActivity::class.java)
+        startActivity(intent)
         return true
     }
 }

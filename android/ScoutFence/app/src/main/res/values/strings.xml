@@ -1,4 +1,12 @@
 <resources>
     <string name="app_name">Scout Fence</string>
     <string name="title_activity_maps">Map</string>
+    <string name="title_activity_settings">Settings</string>
+
+    <!-- Preference Titles -->
+    <string name="safe_zone">Safe Zone</string>
+
+    <!-- Messages Preferences -->
+    <string name="radius">Radius</string>
+
 </resources>
