@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.beust.klaxon.Klaxon
@@ -24,6 +25,9 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.Circle
+import com.google.android.gms.maps.model.CircleOptions
+
 import java.util.*
 
 class LorawanDevice(val deveui: String, var lat: Double, var lon: Double, var alarm: Boolean)
@@ -31,7 +35,7 @@ class Tracker(var device: LorawanDevice, var marker: Marker, var timestamp: Date
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandler {
 
-    private lateinit var mMap: GoogleMap
+    private lateinit var map: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     private lateinit var wserver: LWIntegrationServer
@@ -40,6 +44,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
     private var location : Location? = null
     private lateinit var locationRequest: LocationRequest     
     private lateinit var locationCallback: LocationCallback
+
+    private var circle_: Circle? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,14 +57,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         mapFragment.getMapAsync(this)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
+/* 
         val task = fusedLocationClient.getLastLocation().addOnSuccessListener { location : Location? ->
             Log.i("LoRaWAN", "Initial location acquired ${location}")
         }
         task.addOnFailureListener { e: Exception ->
             Log.e("LoRaWAN", "getLastLocation() failed with $e")
         }
-
+*/
         locationRequest = LocationRequest.create();
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         locationRequest.setInterval(20 * 1000);
@@ -69,14 +75,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 result ?: return
 
                 location = result.getLastLocation()
+                updateSelfView()
+            }
+        }
+    }
 
-                if (location != null) {
-                    val newCamera = LatLng(
-                        location?.latitude ?: 0.0,
-                        location?.longitude ?:0.0
-                    )
-                    mMap.moveCamera(CameraUpdateFactory.newLatLng(newCamera))
-                }
+    private fun updateSelfView() {
+        if (location != null) {
+            val newCamera = LatLng(
+                location?.latitude ?: 0.0,
+                location?.longitude ?:0.0
+            )
+            
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(newCamera, 12.0f))
+
+            val sharedPreferences: SharedPreferences =
+                PreferenceManager.getDefaultSharedPreferences(applicationContext)
+            val radius = sharedPreferences.getString("radius", null)?.toDouble() ?: 300.0
+
+            if(circle_ == null) {
+                circle_ = map.addCircle(CircleOptions()
+                    .center(newCamera)
+                    .radius(radius)
+                    .strokeColor(Color.RED))
+            }
+            else {
+                circle_?.setCenter(newCamera)
+                circle_?.setRadius(radius)
             }
         }
     }
@@ -87,19 +112,21 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
      */
     override fun onMapReady(googleMap: GoogleMap) {
         trackers = mutableMapOf()
-        mMap = googleMap
+        map = googleMap
         wserver = LWIntegrationServer(8080, this)
         wserver.start()
 
         // Add a marker in Sydney and move the camera
         val moscow = LatLng(55.5, 37.5)
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(moscow))
+        map.moveCamera(CameraUpdateFactory.newLatLng(moscow))
         
         val sharedPreferences: SharedPreferences =
             PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        val editor = sharedPreferences.edit();
-        editor.putInt("radius", 300)
-        editor.apply()
+        if (sharedPreferences.getString("radius", "no_value") == "no_value") {
+            val editor = sharedPreferences.edit();
+            editor.putString("radius", "300.0")
+            editor.apply()
+        }
 
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
     }
@@ -131,7 +158,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 else {
                     val sharedPreferences: SharedPreferences =
                         PreferenceManager.getDefaultSharedPreferences(applicationContext)
-                    val radius = sharedPreferences.getInt("radius", 0)
+                    val radius = sharedPreferences.getString("radius", null)?.toDouble() ?: 300.0
 
                     val selfPos = LatLng(selfLocation.latitude, selfLocation.longitude)
                     val distance = distanceBetween(selfPos, devicePos)
@@ -150,7 +177,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
             }
 
             if(!trackers.containsKey(device.deveui)) {
-                val marker = mMap.addMarker(MarkerOptions()
+                val marker = map.addMarker(MarkerOptions()
                     .position(devicePos)
                     .title(device.deveui)
                     .icon(bitmap)
@@ -185,6 +212,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         val intent = Intent(this, SettingsActivity::class.java)
         startActivity(intent)
         return true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateSelfView()
     }
 }
 
