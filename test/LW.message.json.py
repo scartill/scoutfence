@@ -3,8 +3,8 @@ import argparse
 message = """
 {{
 	"deveui":"11223345",
-	"lat": 55.0,
-	"lon": 47.0,
+	"lat": 55.753,
+	"lon": 37.556,
 	"alarm": {alarm}
 }}
 """

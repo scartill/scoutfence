@@ -57,14 +57,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         mapFragment.getMapAsync(this)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-/* 
-        val task = fusedLocationClient.getLastLocation().addOnSuccessListener { location : Location? ->
-            Log.i("LoRaWAN", "Initial location acquired ${location}")
-        }
-        task.addOnFailureListener { e: Exception ->
-            Log.e("LoRaWAN", "getLastLocation() failed with $e")
-        }
-*/
         locationRequest = LocationRequest.create();
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         locationRequest.setInterval(20 * 1000);
@@ -80,6 +72,31 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         }
     }
 
+    /**
+     * Manipulates the map once available.
+     * This callback is triggered when the map is ready to be used.
+     */
+    override fun onMapReady(googleMap: GoogleMap) {
+        trackers = mutableMapOf()
+        map = googleMap
+        wserver = LWIntegrationServer(8080, this)
+        wserver.start()
+
+        // Add a marker in Sydney and move the camera
+        val moscow = LatLng(55.5, 37.5)
+        map.moveCamera(CameraUpdateFactory.newLatLngZoom(moscow, 15.0f))
+        
+        val sharedPreferences: SharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        if (sharedPreferences.getString("radius", "no_value") == "no_value") {
+            val editor = sharedPreferences.edit();
+            editor.putString("radius", "300.0")
+            editor.apply()
+        }
+
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+    }
+
     private fun updateSelfView() {
         if (location != null) {
             val newCamera = LatLng(
@@ -87,7 +104,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 location?.longitude ?:0.0
             )
             
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(newCamera, 12.0f))
+            map.moveCamera(CameraUpdateFactory.newLatLng(newCamera))
 
             val sharedPreferences: SharedPreferences =
                 PreferenceManager.getDefaultSharedPreferences(applicationContext)
@@ -105,32 +122,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
             }
         }
     }
-
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     */
-    override fun onMapReady(googleMap: GoogleMap) {
-        trackers = mutableMapOf()
-        map = googleMap
-        wserver = LWIntegrationServer(8080, this)
-        wserver.start()
-
-        // Add a marker in Sydney and move the camera
-        val moscow = LatLng(55.5, 37.5)
-        map.moveCamera(CameraUpdateFactory.newLatLng(moscow))
-        
-        val sharedPreferences: SharedPreferences =
-            PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        if (sharedPreferences.getString("radius", "no_value") == "no_value") {
-            val editor = sharedPreferences.edit();
-            editor.putString("radius", "300.0")
-            editor.apply()
-        }
-
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-    }
-
 
     private fun distanceBetween(a: LatLng, b: LatLng) : Float {
         var results : FloatArray = FloatArray(1)
