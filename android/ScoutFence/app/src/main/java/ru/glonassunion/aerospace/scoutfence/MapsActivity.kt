@@ -27,11 +27,17 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Circle
 import com.google.android.gms.maps.model.CircleOptions
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import android.content.Context
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 
 import java.util.*
 
 class LorawanDevice(val deveui: String, var lat: Double, var lon: Double, var alarm: Boolean)
-class Tracker(var device: LorawanDevice, var marker: Marker, var timestamp: Date)
+class Tracker(var device: LorawanDevice, var marker: Marker, var timestamp: Date, var tooFar: Boolean)
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandler {
 
@@ -39,7 +45,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     private lateinit var wserver: LWIntegrationServer
-    private lateinit var trackers: MutableMap<String, Tracker>
+    private var trackers: MutableMap<String, Tracker>? = null
 
     private var location : Location? = null
     private lateinit var locationRequest: LocationRequest     
@@ -47,8 +53,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
 
     private var circle_: Circle? = null
 
+    private val CHANNEL_ID = "zone_notification_channel"
+    private lateinit var builder: NotificationCompat.Builder
+    private val ZONE_NOTIFICATION_ID = 1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        createNotification()
 
         setContentView(R.layout.activity_maps)
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -61,6 +73,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         locationRequest.setInterval(20 * 1000);
 
+        val context = this
         locationCallback = object: LocationCallback() {            
             override fun onLocationResult(result: LocationResult?)  {
                 Log.i("LoRaWAN", "Location acquired ${result}")
@@ -97,6 +110,27 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
     }
 
+    private fun createNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = getString(R.string.channel_name)
+            val descriptionText = getString(R.string.channel_description)
+            val importance = NotificationManager.IMPORTANCE_HIGH
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+            // Register the channel with the system
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.zone_notification_icon)
+            .setContentTitle(getString(R.string.notify_title))
+            .setContentText(getString(R.string.notify_content))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+    }
+
     private fun updateSelfView() {
         if (location != null) {
             val newCamera = LatLng(
@@ -121,6 +155,23 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 circle_?.setRadius(radius)
             }
         }
+
+        val trackSnap = trackers
+        trackSnap?.let {
+            var shouldNotify = false
+            for ((_, tracker) in it) {
+                if (tracker.device.alarm || tracker.tooFar) {
+                    shouldNotify = true
+                }
+            }
+
+            if(!shouldNotify) {
+                Log.d("LoRaWAN", "Relaxing alarms")
+                val notificationManager: NotificationManager =
+                    getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.cancel(ZONE_NOTIFICATION_ID)
+            }
+        }
     }
 
     private fun distanceBetween(a: LatLng, b: LatLng) : Float {
@@ -135,6 +186,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
     }
 
     override fun HandleLorawanJSON(json: String): Boolean {
+        Log.d("LoRaWAN", "Processing JSON ${json}")
+
         try {
             val device = Klaxon().parse<LorawanDevice>(json)
                 ?: throw IllegalArgumentException("Unable to parse JSON: $json")
@@ -159,7 +212,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                     distance > radius
             }
 
-            Log.i("LoRaWAN", "Device alerm state ${device.alarm.toString()}")
+            Log.i("LoRaWAN", "Device alarm state ${device.alarm.toString()}")
 
             val bitmap = when {
                 device.alarm -> fromResource(R.drawable.marker_red)
@@ -167,22 +220,35 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                 else -> fromResource(R.drawable.marker_green)
             }
 
-            if(!trackers.containsKey(device.deveui)) {
-                val marker = map.addMarker(MarkerOptions()
-                    .position(devicePos)
-                    .title(device.deveui)
-                    .icon(bitmap)
-                )
-                val tracker = Tracker(device, marker, Date())
-                trackers[device.deveui] = tracker
+            val trackSnap = trackers
+            trackSnap?.let {
+                if(!it.containsKey(device.deveui)) {
+                    val marker = map.addMarker(MarkerOptions()
+                        .position(devicePos)
+                        .title(device.deveui)
+                        .icon(bitmap)
+                    )
+                    val tracker = Tracker(device, marker, Date(), tooFar)
+                    it[device.deveui] = tracker
+                    tracker
+                }
+                else
+                {
+                    val tracker = it.getValue(device.deveui)
+                    tracker.device = device
+                    val marker = tracker.marker
+                    marker.position = devicePos
+                    marker.setIcon(bitmap)
+                    tracker.timestamp = Date()
+                    tracker.tooFar = tooFar
+                }
             }
-            else
-            {
-                val tracker = trackers.getValue(device.deveui)
-                val marker = tracker.marker
-                marker.position = devicePos
-                marker.setIcon(bitmap)
-                tracker.timestamp = Date()
+            
+            if (tooFar || device.alarm) {
+                Log.d("LoRaWAN", "Setting alarm for tracker ${device.deveui}")
+                with(NotificationManagerCompat.from(this)) {
+                    notify(ZONE_NOTIFICATION_ID, builder.build())
+                }
             }
         }
         catch (e: Exception)
