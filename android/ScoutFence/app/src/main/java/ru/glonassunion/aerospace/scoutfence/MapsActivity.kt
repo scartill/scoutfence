@@ -31,8 +31,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import android.app.AlertDialog
+import android.content.DialogInterface
+import android.Manifest
 
 import java.util.*
 
@@ -59,6 +64,27 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        val permState = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        if (permState != PackageManager.PERMISSION_GRANTED) {
+            val builder = AlertDialog.Builder(this);
+
+            val callback = {
+                dialog: DialogInterface, id: Int ->
+                    dialog.cancel()
+            }
+
+            builder.setMessage("Please grant permission to access the location!")
+                .setCancelable(true)
+                .setPositiveButton("OK", callback)
+            val alert = builder.create()
+            alert.show()
+        }
+
+        // TODO: move to application class
+        trackers = mutableMapOf()
+        wserver = LWIntegrationServer(8081, this)
+        wserver.start()
 
         createNotification()
 
@@ -90,10 +116,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
      * This callback is triggered when the map is ready to be used.
      */
     override fun onMapReady(googleMap: GoogleMap) {
-        trackers = mutableMapOf()
         map = googleMap
-        wserver = LWIntegrationServer(8080, this)
-        wserver.start()
 
         // Add a marker in Sydney and move the camera
         val moscow = LatLng(55.5, 37.5)
