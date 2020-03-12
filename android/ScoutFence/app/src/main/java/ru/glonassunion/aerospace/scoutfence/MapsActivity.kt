@@ -70,7 +70,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
             val builder = AlertDialog.Builder(this);
 
             val callback = {
-                dialog: DialogInterface, id: Int ->
+                dialog: DialogInterface, _: Int ->
                     dialog.cancel()
             }
 
@@ -99,7 +99,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         locationRequest.setInterval(20 * 1000);
 
-        val context = this
         locationCallback = object: LocationCallback() {            
             override fun onLocationResult(result: LocationResult?)  {
                 Log.i("LoRaWAN", "Location acquired ${result}")
@@ -208,7 +207,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
         return results[0]
     }
 
-    override fun HandleLorawanJSON(json: String): Boolean {
+    override fun HandleLorawanJSON(json: String?): Boolean {
+        if (json == null) {
+            Log.w("LoRaWAN", "Received null JSON")
+            return true // It's OK really
+        }
+
         Log.d("LoRaWAN", "Processing JSON ${json}")
 
         try {
@@ -253,7 +257,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, ILorawanJsonHandle
                     )
                     val tracker = Tracker(device, marker, Date(), tooFar)
                     it[device.deveui] = tracker
-                    tracker
                 }
                 else
                 {
